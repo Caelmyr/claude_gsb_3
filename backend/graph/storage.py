@@ -12,10 +12,15 @@ class GraphStorage:
     """图谱存储管理器 - 按实体类型分片"""
 
     def __init__(self):
-        self.lock = threading.Lock()
+        # 使用可重入锁：add_relation 在持锁状态下会调用 add_entity
+        self.lock = threading.RLock()
         self._ensure_directories()
         self._cache = {}
         self._load_all_shards()
+
+    def _normalize_type(self, entity_type: str) -> str:
+        """将未配置分片的实体类型归一化到 OTHER，避免多个类型写入同一文件互相覆盖"""
+        return entity_type if entity_type in GRAPH_SHARDS else 'OTHER'
 
     def _ensure_directories(self):
         """确保目录存在"""
@@ -33,6 +38,7 @@ class GraphStorage:
 
     def _save_shard(self, entity_type: str):
         """保存指定分片到文件"""
+        entity_type = self._normalize_type(entity_type)
         filename = GRAPH_SHARDS.get(entity_type, 'other.json')
         filepath = os.path.join(GRAPH_DIR, filename)
         with open(filepath, 'w', encoding='utf-8') as f:
@@ -40,6 +46,7 @@ class GraphStorage:
 
     def add_entity(self, entity_text: str, entity_type: str, properties: Dict = None):
         """添加实体"""
+        entity_type = self._normalize_type(entity_type)
         with self.lock:
             if entity_type not in self._cache:
                 self._cache[entity_type] = {'entities': {}, 'relations': []}
@@ -60,6 +67,8 @@ class GraphStorage:
     def add_relation(self, subject: str, subject_type: str, predicate: str,
                      obj: str, object_type: str, properties: Dict = None):
         """添加关系"""
+        subject_type = self._normalize_type(subject_type)
+        object_type = self._normalize_type(object_type)
         with self.lock:
             # 确保实体存在
             self.add_entity(subject, subject_type)
