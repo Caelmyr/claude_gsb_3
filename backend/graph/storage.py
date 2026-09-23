@@ -12,7 +12,8 @@ class GraphStorage:
     """图谱存储管理器 - 按实体类型分片"""
 
     def __init__(self):
-        self.lock = threading.Lock()
+        # 使用可重入锁：add_relation 会在持锁状态下继续调用 add_entity
+        self.lock = threading.RLock()
         self._ensure_directories()
         self._cache = {}
         self._load_all_shards()
@@ -20,6 +21,13 @@ class GraphStorage:
     def _ensure_directories(self):
         """确保目录存在"""
         os.makedirs(GRAPH_DIR, exist_ok=True)
+
+    @staticmethod
+    def _normalize_type(entity_type: str) -> str:
+        """将实体类型规范化为分片配置中定义的标准类型，未知类型归入 OTHER"""
+        if entity_type and entity_type in GRAPH_SHARDS:
+            return entity_type
+        return 'OTHER'
 
     def _load_all_shards(self):
         """加载所有分片到缓存"""
@@ -33,13 +41,15 @@ class GraphStorage:
 
     def _save_shard(self, entity_type: str):
         """保存指定分片到文件"""
-        filename = GRAPH_SHARDS.get(entity_type, 'other.json')
+        entity_type = self._normalize_type(entity_type)
+        filename = GRAPH_SHARDS[entity_type]
         filepath = os.path.join(GRAPH_DIR, filename)
         with open(filepath, 'w', encoding='utf-8') as f:
             json.dump(self._cache[entity_type], f, ensure_ascii=False, indent=2)
 
     def add_entity(self, entity_text: str, entity_type: str, properties: Dict = None):
         """添加实体"""
+        entity_type = self._normalize_type(entity_type)
         with self.lock:
             if entity_type not in self._cache:
                 self._cache[entity_type] = {'entities': {}, 'relations': []}
@@ -60,8 +70,10 @@ class GraphStorage:
     def add_relation(self, subject: str, subject_type: str, predicate: str,
                      obj: str, object_type: str, properties: Dict = None):
         """添加关系"""
+        subject_type = self._normalize_type(subject_type)
+        object_type = self._normalize_type(object_type)
         with self.lock:
-            # 确保实体存在
+            # 确保实体存在（RLock 允许在此重入 add_entity）
             self.add_entity(subject, subject_type)
             self.add_entity(obj, object_type)
 

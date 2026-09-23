@@ -22,8 +22,9 @@ CORS(app)
 
 # 初始化组件
 nlp_pipeline = NLPPipeline()
-graph_builder = GraphBuilder()
+# 全局唯一的图谱存储实例：文档解析、手动标注、图谱查询共用同一缓存
 graph_storage = GraphStorage()
+graph_builder = GraphBuilder(graph_storage)
 graph_query = GraphQuery(graph_storage)
 answer_generator = AnswerGenerator(graph_storage)
 dialogue_manager = DialogueManager()

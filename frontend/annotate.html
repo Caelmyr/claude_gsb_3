@@ -560,7 +560,7 @@
         // 保存实体到服务器
         async function saveEntity(entity) {
             try {
-                await fetch(`${API_BASE}/api/annotate/entity`, {
+                const response = await fetch(`${API_BASE}/api/annotate/entity`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
@@ -569,8 +569,13 @@
                         doc_id: currentDocId
                     })
                 });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.success === false) {
+                    alert('实体保存失败: ' + (data.error || response.status));
+                }
             } catch (error) {
                 console.error('保存实体失败:', error);
+                alert('实体保存失败，请检查后端服务');
             }
         }
 
@@ -656,19 +661,25 @@
                 object_type: objectEntity?.type || 'OTHER'
             };
 
-            relations.push(relation);
-
             // 发送到服务器
             try {
-                await fetch(`${API_BASE}/api/annotate/relation`, {
+                const response = await fetch(`${API_BASE}/api/annotate/relation`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(relation)
                 });
+                const data = await response.json().catch(() => ({}));
+                if (!response.ok || data.success === false) {
+                    alert('关系保存失败: ' + (data.error || response.status));
+                    return;
+                }
             } catch (error) {
                 console.error('保存关系失败:', error);
+                alert('关系保存失败，请检查后端服务');
+                return;
             }
 
+            relations.push(relation);
             updateRelationList();
         }
 
